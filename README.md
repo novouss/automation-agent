@@ -25,5 +25,19 @@ Your assignment is to build an automation agent that accepts plain‑English tas
 
 ## How to run
 
-1. Build the image by running `docker build -t raymond-gorospe:v1`
-2. Run the docker image `docker run -p 8080:80 raymond-gorospe:v1`
+1. Build the image by running `sudo docker build -t raymond-gorospe:v1 .`
+2. Run the docker image `sudo docker run -p 8000:8000 raymond-gorospe:v1`
+
+## How to POST/GET
+
+Request through a RESTAPI format:
+
+- Run the `curl -X POST http://localhost:8000/run?task=<task description>` to execute a task.
+- Run the `curl -X GET http://localhost:8000/read?path=<file path>` to read contents of files. 
+
+## Debugging
+
+Debugging the inner workings of an docker image file can be difficult. Use the following commands to test.
+
+- Run the `curl -X GET http://localhost:8000/greet` allows the api to return a greeting message you, indicating the app works!
+- Run the `curl -X GET http://localhost:8000/files?path=<file path>` allows the api to return a list of files.
