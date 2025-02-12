@@ -83,16 +83,26 @@ def function_gpt(prompt: str, tools: list(Dict[str, Any])):
     output = completions.choices[0].message
     return output
 
-def check_directory(path: str):
+def make_directory(path: str):
     dir = os.path.dirname(path)
     if not os.path.exists(dir):
         os.makedirs(dir)
 
 def retrieve_data(url: str, email: str):
-    subprocess.run(["uv", "run", url, email])
+    try:
+        subprocess.run(["uv", "run", url, email], check=True)
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Subprocess failed with error: {e}")
+    except PermissionError as e:
+        raise PermissionError(f"Permission denied: {e}")
 
 def format_content(input: str):
-    subprocess.run(["prettier", "--write", input])
+    try:
+        subprocess.run(["prettier", "--write", input])
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Subprocess failed with error: {e}")
+    except PermissionError as e:
+        raise PermissionError(f"Permission denied: {e}")
 
 def count_days(days: str, input: str, output: str):
     with open(input, "r") as file:
@@ -116,18 +126,20 @@ def count_days(days: str, input: str, output: str):
         except ValueError:
             continue
     # Write the count to the output file
-    check_directory(output)
+    make_directory(output)
     with open(output, "w") as file:
         file.write(str(count_days))
+    return "Result of counted days has been saved at: " + output
 
 def sort_contacts(conditions: list[str], input: str, output: str):
     with open(input, "r") as file:
         contacts = json.load(file)
     sorted_contacts = sorted(contacts, key=lambda x: tuple(x[key] for key in conditions))
     # Write the sorted contacts to the output file
-    check_directory(output)
+    make_directory(output)
     with open(output, "w") as file:
         json.dump(sorted_contacts, file, indent=4)
+    return "Sorted contacts has been saved at: " + output
 
 def recent_logs(count: int, input: str, output: str):
     log_files = [os.path.join(input, f) for f in os.listdir(input) if f.endswith(".log")]
@@ -138,10 +150,11 @@ def recent_logs(count: int, input: str, output: str):
             first_line = file.readLines().strip()
             recent_logs.append(first_line)
     # Write the first line of the most recent logs to the output file
-    check_directory(output)
+    make_directory(output)
     with open(output, "w") as file:
         for log in recent_logs:
             file.write(log + "\n")
+    return "Recent logs has been saved at: " + output
     
 def file_contents(filetype: str, input: str, output: str):
     index = {}
@@ -162,18 +175,20 @@ def file_contents(filetype: str, input: str, output: str):
                             break
 
     # Write the file index and contents to output file
-    check_directory(output)
+    make_directory(output)
     with open(output, "w") as file:
         json.dump(index, file)
+    return "File contents has been saved at: " + output
 
 def extract_email(input: str, output: str):
     with open(input, "r") as file:
         email = file.read()
     response = query_gpt(f"Extract the sender's email address from this email. {email}")
     # Write the sender's email address to the output file
-    check_directory(output)
+    make_directory(output)
     with open(output, "w") as file:
         file.write(response)
+    return "Extracted email has been saved at: " + output
 
 def extract_credit_card(input: str, output: str):
     with open(input, "rb") as file:
@@ -181,9 +196,10 @@ def extract_credit_card(input: str, output: str):
     image_base64 = f"data:image/png;base64,{image}"
     response = query_gpt_with_image("Extract the long Product Cover ID numbers (often spaced as XXXX-XXXX-XXXX-XXXX) from this image.", image_base64)
     # Write the credit card number to the output file
-    check_directory(output)
+    make_directory(output)
     with open(output, "w") as file:
         file.write(response)
+    return "Extracted credit card has been saved at: " + output
 
 def embedding_comments(input: str, output: str):
     with open(input, "r") as file:
@@ -200,10 +216,11 @@ def embedding_comments(input: str, output: str):
                 min_distance = cosine_distances[i, j]
                 most_similar_pair = (comments[i], comments[j])
     # Write the most similar embeddings to output file
-    check_directory(output)
+    make_directory(output)
     with open(output, "w") as file:
         file.write(most_similar_pair[0] + "\n")
         file.write(most_similar_pair[1] + "\n")
+    return "Most similar lines have been saved at: " + output
 
 def ticket_sales(type: str, input: str, output: str):
     conn = sqlite3.connect(input)
@@ -212,9 +229,10 @@ def ticket_sales(type: str, input: str, output: str):
     cur.execute("SELECT SUM(Units * Price) AS total_sales FROM tickets WHERE LOWER(Type) LIKE '%" + type + "%';")
     sales = cur.fetchall()
     # Write the total ticket sales of type
-    check_directory(output)
+    make_directory(output)
     with open(output, "w") as file:
         file.write(str(sales[0][0]))
+    return "Result of total ticket sales has been saved at: " + output
 
 functions = {
     "retrieve_data": retrieve_data,
@@ -231,9 +249,11 @@ functions = {
 
 @app.post("/run", status_code=status.HTTP_200_OK)
 def run_task(request: Request):
-    task = request.query_params["task"]
-    if not task:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing 'task' parameter")
+    try:
+        task = request.query_params["task"]
+    except KeyError as ke:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing {ke} parameter")
+    
     task = query_gpt("Translate this text to English: " + task)
     response = function_gpt(task, function_calls)
 
@@ -258,9 +278,10 @@ def run_task(request: Request):
 
 @app.get("/read", status_code=status.HTTP_200_OK)
 def read_path(request: Request):
-    path = request.query_params["path"]
-    if not path:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Missing 'path' parameter")
+    try:
+        path = request.query_params["path"]
+    except KeyError as ke:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing {ke} parameter")
     output = ""
     try:
         with open(path, "r") as file:
@@ -268,3 +289,15 @@ def read_path(request: Request):
     except FileNotFoundError as fnfe: 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The file or directory {fnfe} does not exist or cannot be found!")
     return output
+
+@app.get("/greet", status_code=status.HTTP_200_OK)
+def debug_tool(request: Request):
+    return "Hello!"
+
+@app.get("/files", status_code=status.HTTP_200_OK)
+def debug_files(request: Request):
+    try:
+        path = request.query_params["path"]
+    except KeyError as ke:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing {ke} parameter")
+    return os.listdir(path)
