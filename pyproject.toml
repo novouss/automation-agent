@@ -1,5 +1,5 @@
 [project]
-name = "tds-project"
+name = "automation-agent"
 version = "0.1.0"
 description = "Project submission for Tools in Data Science"
 readme = "README.md"
