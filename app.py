@@ -6,7 +6,7 @@ from openai import OpenAI
 
 from sentence_transformers import SentenceTransformer
 from function_calls import function_calls
-from keys import OPENAI_KEY
+# from keys import OPENAI_KEY
 
 import os
 import json
