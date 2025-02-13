@@ -26,7 +26,7 @@ Your assignment is to build an automation agent that accepts plain‑English tas
 ## How to run
 
 1. Build the image by running `sudo docker build -t raymond-gorospe:v1 .`
-2. Run the docker image `sudo docker run -p 8000:8000 raymond-gorospe:v1`
+2. Run the docker image `sudo docker run raymond-gorospe:v1 -p 8000:8000 -e AIPROXY_TOKEN=<openai_token>`
 
 ## How to POST/GET
 
