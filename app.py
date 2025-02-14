@@ -1,12 +1,12 @@
 from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from typing import Dict, Any
+from typing import List, Dict, Any
 from openai import OpenAI
 
 from sentence_transformers import SentenceTransformer
 from function_calls import function_calls
-# from keys import OPENAI_KEY
+from keys import OPENAI_KEY
 
 import os
 import json
@@ -14,6 +14,7 @@ import base64
 import sqlite3
 import subprocess
 import numpy as np
+from langdetect import detect
 from scipy.spatial import distance
 from dateutil.parser import parse
 
@@ -28,17 +29,17 @@ app.add_middleware(
 )
 
 client = OpenAI(
-    api_key = os.environ["AIPROXY_TOKEN"],
-    # api_key = OPENAI_KEY,
+    # api_key = os.environ["AIPROXY_TOKEN"],
+    api_key = OPENAI_KEY,
     base_url = "https://llmfoundry.straive.com/openai/v1"
 )
 
-def query_gpt(query: str):
+def query_gpt(query: str, system: str = "Reply only with the answer the user is looking for, no added texts."):
     completions = client.chat.completions.create(
         model = "gpt-4o-mini",
         messages = [{
             "role": "system",
-            "content": "You are a helpful assistant. Reply only with the answer the user is looking for, no added texts."
+            "content": system
         },
         {
             "role": "user",
@@ -71,7 +72,7 @@ def query_gpt_with_image(query: str, image: str):
     )
     return completions.choices[0].message.content
 
-def function_gpt(prompt: str, tools: list(Dict[str, Any])):
+def function_gpt(prompt: str, tools: List[Dict[str, Any]]):
     completions = client.chat.completions.create(
         model = "gpt-4o-mini",
         messages = [{
@@ -88,34 +89,42 @@ def make_directory(path: str):
     if not os.path.exists(dir):
         os.makedirs(dir)
 
+def is_english(text: str):
+    return detect(text) == "en"
+
 def retrieve_data(url: str, email: str):
     try:
-        subprocess.run(["uv", "run", url, email], check=True)
+        subprocess.run(["uv", "run", url, email], check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Subprocess failed with error: {e}")
-    except PermissionError as e:
-        raise PermissionError(f"Permission denied: {e}")
+        raise RuntimeError(f"Data retrieval failed with error: {str(e.stderr.decode())}")
+    return f"{url} has ran successfully!"
 
-def format_content(input: str):
+def format_content(prettier: str, input: str):
     try:
-        subprocess.run(["prettier", "--write", input])
+        subprocess.run(["npx", "-y", prettier, "--write", input], check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Subprocess failed with error: {e}")
-    except PermissionError as e:
-        raise PermissionError(f"Permission denied: {e}")
+        raise RuntimeError(f"Content Formatting failed with error: {str(e.stderr.decode())}")
+    return input + " has been formatted"
+
+def normalize_day(day: str) -> str:
+    day = day.lower().rstrip('s')
+    if day.endswith("day"):
+        return day[:-3]
+    return day
 
 def count_days(days: str, input: str, output: str):
     with open(input, "r") as file:
         dates = file.readlines()
     day_number = {
-        "Monday": 0,
-        "Tuesday": 1,
-        "Wednesday": 2,
-        "Thursday": 3,
-        "Friday": 4,
-        "Saturday": 5,
-        "Sunday": 6
+        "mon": 0,
+        "tue": 1,
+        "wed": 2,
+        "thurs": 3,
+        "fri": 4,
+        "sat": 5,
+        "sun": 6
     }
+    days = days.lower()
     count_days = 0
     for date_str in dates:
         date_str = date_str.strip()
@@ -194,7 +203,7 @@ def extract_credit_card(input: str, output: str):
     with open(input, "rb") as file:
         image = base64.b64encode(file.read()).decode("utf-8")
     image_base64 = f"data:image/png;base64,{image}"
-    response = query_gpt_with_image("Extract the long Product Cover ID numbers (often spaced as XXXX-XXXX-XXXX-XXXX) from this image.", image_base64)
+    response = query_gpt_with_image("Extract the long Product Cover ID numbers (often a variation of XXXX XXXX XXXX XXXX) from this image ", image_base64)
     # Write the credit card number to the output file
     make_directory(output)
     with open(output, "w") as file:
@@ -250,42 +259,48 @@ functions = {
 @app.post("/run", status_code=status.HTTP_200_OK)
 def run_task(request: Request):
     try:
+        # Retrieve task request
         task = request.query_params["task"]
+        if not is_english(task):
+            # If task wasn't written in English, translate it
+            task = query_gpt("Translate this text in English: " + task)
+        # Run task to function calls
+        response = function_gpt(task, function_calls)
+        # print(task, response, sep="\n")
+        # Tasks under function call responses
+        if response.function_call:
+            function_called = response.function_call.name
+            function_args = json.loads(response.function_call.arguments)
+            function_to_call = functions[function_called]
+            required_params = next((f["required"] for f in function_calls if f["name"] == function_called), [])
+            for param in required_params:
+                # Checking for required parameters
+                if param not in function_args:
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing required parameter: {param}")
+                # Checking for asking data outside of /data/
+                if param in ["input", "output"] and not function_args[param].startswith("/data/"):
+                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Sorry, you don't have permission to access {function_args[param]}")
+            # Continue to run if required parameters are met
+            response_message = function_to_call(*list(function_args.values()))
+        else:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No function call found in the response.")
     except KeyError as ke:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing {ke} parameter")
-    
-    task = query_gpt("Translate this text to English: " + task)
-    response = function_gpt(task, function_calls)
-
-    if response.function_call:
-        function_called = response.function_call.name
-        function_args = json.loads(response.function_call.arguments)
-        function_to_call = functions[function_called]
-        # Checking for required parameters
-        required_params = next((f["required"] for f in function_calls if f["name"] == function_called), [])
-        for param in required_params:
-            if param not in function_args:
-                raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing required parameter: {param}")
-        try:
-            response_message = function_to_call(*list(function_args.values()))
-        except FileNotFoundError as fnfe:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The file or directory {fnfe} does not exist or cannot be found!")
-        except Exception as e:
-            raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
-    else:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No function call found in the response.")
+    except FileNotFoundError as fnfe:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The file or directory {fnfe} does not exist or cannot be found!")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
     return JSONResponse(content={"message": "Task completed successfully", "response": response_message}, status_code=status.HTTP_200_OK)
 
 @app.get("/read", status_code=status.HTTP_200_OK)
 def read_path(request: Request):
     try:
         path = request.query_params["path"]
-    except KeyError as ke:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing {ke} parameter")
-    output = ""
-    try:
+        output = ""
         with open(path, "r") as file:
             output = file.read()
+    except KeyError as ke:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing {ke} parameter")
     except FileNotFoundError as fnfe: 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The file or directory {fnfe} does not exist or cannot be found!")
     return output

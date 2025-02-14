@@ -3,7 +3,7 @@
 
 retrieve_data = {
     "name": "retrieve_data",
-    "description": "Retrieve data from Github User Content site",
+    "description": "Any variation referring to retrieving data from Github User Content site",
     "parameters": {
         "type": "object",
         "properties": {
@@ -15,7 +15,7 @@ retrieve_data = {
                 "type": "string",
                 "description": "An email is required to download the files e.g. example@email.com"
             }
-        }
+        },
     },
     "required": ["url", "email"]
 }
@@ -28,37 +28,40 @@ format_content = {
     "parameters": {
         "type": "object",
         "properties": {
+            "prettier": {
+                "type": "string",
+                "description": "Prettier version to use to format the document e.g. prettier@X.X.X"
+            },
             "input": {
                 "type": "string",
-                "description": "FIlepath and name that contains the contents to format e.g. ./path/to/file.txt"
+                "description": "Filepath and name that contains the contents to format e.g. /data/path/to/file.txt"
             }
-        }
+        },
     },
     "required": ["input"]
 }
-
 
 # A3
 
 count_days = {
     "name": "count_days",
-    "description": "Count the number of days in the list",
+    "description": "Any variation referring to retrieving count of days in a list",
     "parameters": {
         "type": "object",
         "properties": {
             "days": {
                 "type": "string",
-                "description": "Singular day of the week e.g. Thursday"
+                "description": "Day of the week e.g. Monday, Tues, Wed, Thursday, Friday, Saturday, Sunday"
             },
             "input": {
                 "type": "string",
-                "description": "Filepath and name that contains the dates e.g. ./path/to/file.txt"
+                "description": "Filepath and name that contains the dates e.g. /data/path/to/file.txt"
             },
             "output": {
                 "type": "string",
-                "description": "Filepath and name to save the output e.g. ./path/to/output.txt"
+                "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
             }
-        }
+        },
     },
     "required": ["days", "input", "output"]
 }
@@ -67,7 +70,7 @@ count_days = {
 
 sort_contacts = {
     "name": "sort_contacts",
-    "description": "Sort an array of contacts",
+    "description": "Any variation referring to retrieving and sorting an array of contacts",
     "parameters": {
         "type": "object",
         "properties": {
@@ -80,22 +83,22 @@ sort_contacts = {
             },
             "input": {
                 "type": "string",
-                "description": "Filepath and name that contains the contacts e.g. ./path/to/file.json"
+                "description": "Filepath and name that contains the contacts e.g. /data/path/to/file.json"
             },
             "output": {
                 "type": "string",
-                "description": "Filepath and name to save the output e.g. ./path/to/output.json"
+                "description": "Filepath and name to save the output e.g. /data/path/to/output.json"
             }
-        }
+        },
     },
-    "required": ["conditions", "input", "output"]
+    "required": ["conditions", "input", "output"],
 }
 
 # A5
 
 recent_logs = {
     "name": "recent_logs",
-    "description": "Write the most recent logs",
+    "description": "Any variation of extracting the most recent logs",
     "parameters": {
         "type": "object",
         "properties": {
@@ -105,22 +108,22 @@ recent_logs = {
             },
             "input": {
                 "type": "string",
-                "description": "Filepath that contains the logs e.g. ./path/to/file"
+                "description": "Filepath that contains the logs e.g. /data/path/to/file"
             },
             "output": {
                 "type": "string",
-                "description": "Filename and name to save the output e.g. ./path/to/output.txt"
+                "description": "Filename and name to save the output e.g. /data/path/to/output.txt"
             }
-        }
+        },
     },
-    "required": ["count", "input", "output"]
+    "required": ["count", "input", "output"],
 }
 
 # A6
 
 file_contents = {
     "name": "file_contents",
-    "description": "Extracting the first occurrence of each file and indexing it",
+    "description": "Any variation referring to retrieving the first occurrence of each file and extract it",
     "parameters": {
         "type": "object",
         "properties": {
@@ -130,85 +133,127 @@ file_contents = {
             },
             "input": {
                 "type": "string",
-                "description": "Filepath and name that contains the files to be indexed e.g. ./path/to/file.md"
+                "description": "Filepath and name that contains the files to be indexed e.g. /data/path/to/file.md"
             },
             "output": {
                 "type": "string",
-                "description": "Filepath and name to save the output e.g. ./path/to/output.json"
+                "description": "Filepath and name to save the output e.g. /data/path/to/output.json"
             }
-        }
+        },
     },
-    "required": ["filetype", "input", "output"]
+    "required": ["filetype", "input", "output"],
 }
 
 # A7
 
 extract_email = {
     "name": "extract_email",
-    "description": "Extract the sender's email address",
+    "description": "Any variation referring to retrieving and extracting the sender's email address",
     "parameters": {
         "type": "object",
         "properties": {
             "input": {
                 "type": "string",
-                "description": "Filepath and name that contains the email message e.g. ./path/to/file.txt"
+                "description": "Filepath and name that contains the email message e.g. /data/path/to/file.txt"
             },
             "output": {
                 "type": "string",
-                "description": "Filepath and name to save the output e.g. ./path/to/output.txt"
+                "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
             }
-        }
+        },
     },
-    "required": ["input", "output"]
+    "required": ["input", "output"],
 }
 
 # A8
 
 extract_credit_card = {
     "name": "extract_credit_card",
-    "description": "Extract the credit card number from an image file",
+    "description": "Any variation referring to retrieving and extracting the credit card number from an image file",
     "parameters": {
         "type": "object",
         "properties": {
             "input": {
                 "type": "string",
-                "description": "Filepath and name that contains the credit card numbers e.g. ./path/to/file.png"
+                "description": "Filepath and name that contains the credit card numbers e.g. /data/path/to/file.png"
             },
             "output": {
                 "type": "string",
-                "description": "Filepath and name to save the output e.g. ./path/to/output.txt"
+                "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
             }
-        }
+        },
     },
-    "required": ["input", "output"]
+    "required": ["input", "output"],
+}
+
+# A8
+
+extract_credit_card = {
+    "name": "extract_credit_card",
+    "description": "Any variation referring to retrieving and extracting the credit card number from an image file",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "input": {
+                "type": "string",
+                "description": "Filepath and name that contains the credit card numbers e.g. /data/path/to/file.png"
+            },
+            "output": {
+                "type": "string",
+                "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
+            }
+        },
+    },
+    "required": ["input", "output"],
+}
+
+# A8
+
+extract_credit_card = {
+    "name": "extract_credit_card",
+    "description": "Any variation referring to retrieving and extracting the credit card number from an image file",
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "input": {
+                "type": "string",
+                "description": "Filepath and name that contains the credit card numbers e.g. /data/path/to/file.png"
+            },
+            "output": {
+                "type": "string",
+                "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
+            }
+        },
+    },
+    "required": ["input", "output"],
 }
 
 # A9
 
 embedding_comments = {
     "name": "embedding_comments",
-    "description": "Extract similar comment embeddings",
+    "description": "Any variation referring to retrieving similar comment embeddings",
     "parameters": {
         "type": "object",
         "properties": {
             "input": {
                 "type": "string",
-                "description": "Filepath and name that contains a list of comments e.g. ./path/to/file.txt"
+                "description": "Filepath and name that contains a list of comments e.g. /data/path/to/file.txt"
             },
             "output": {
                 "type": "string",
-                "description": "Filepath and name to save the output e.g. ./path/to/output.txt"
+                "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
             }
-        }
+        },
     },
-    "required": ["input", "output"]
+    "required": ["input", "output"],
 }
 
 # A10
 
 ticket_sales = {
     "name": "ticket_sales",
-    "description": "Extract total ticket sales",
+    "description": "Any variation referring to retrieving and extracting total ticket sales",
     "parameters": {
         "type": "object",
         "properties": {
@@ -218,15 +263,15 @@ ticket_sales = {
             },
             "input": {
                 "type": "string",
-                "description": "Filepath that contains the database file e.g. ./path/to/file.db"
+                "description": "Filepath that contains the database file e.g. /data/path/to/file.db"
             },
             "output": {
                 "type": "string",
-                "description": "Filepath and name to save the output e.g. ./path/to/output.txt"
+                "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
             }
-        }
+        },
     },
-    "required": ["type", "input", "output"]
+    "required": ["type", "input", "output"],
 }
 
 function_calls = [
