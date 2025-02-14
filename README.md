@@ -6,12 +6,10 @@ You have joined the operations team at **DataWorks Solutions**, a company that p
 
 Due to the unpredictable nature of incoming data (from logs, ticket systems, source code, surveys, etc.) the team has decided to use a Large Language Model (LLM) as an intermediate transformer. In this role, the LLM will perform small, reasonably deterministic tasks.
 
-Your assignment is to build an automation agent that accepts plain‑English tasks, carries out the required (multi‑step) process leveraging an LLM where required. The finished processing artifacts must be exactly verifiable against pre‑computed expected results.
-
 ## API Capabilities
 
 - Use a [Dockerfile](Dockerfile) to build and run the application
-- Capable of doing the following requests through to its api:
+- Capable of doing the following requests through api requests:
     - Generate data files required for the next tasks
     - Format markdowns using `prettier@3.4.2`
     - Count the number of days in a list dates
@@ -23,6 +21,7 @@ Your assignment is to build an automation agent that accepts plain‑English tas
     - Pair most similar comments using embeddings and cosine similarity
     - Write the total sales of all items in a particular ticket type
     - Locks users out of appropriate file structure
+- Capable of code creation and execution
 
 ## How to run
 
@@ -33,12 +32,12 @@ Your assignment is to build an automation agent that accepts plain‑English tas
 
 Request through a RESTAPI format:
 
-- Run the `curl -X POST http://localhost:8000/run?task=<task description>` to execute a task.
-- Run the `curl -X GET http://localhost:8000/read?path=<file path>` to read contents of files. 
+- Run the `curl -X POST http://localhost:8000/run?task=<task+description>` to execute a task.
+- Run the `curl -X GET http://localhost:8000/read?path=<file+path>` to read contents of files. 
 
 ## Debugging
 
-Debugging the inner workings of an docker image file can be difficult. Use the following commands to test.
+Debugging the inner workings of a docker image file can be difficult. Use the following api calls to test the docker image.
 
 - Run the `curl -X GET http://localhost:8000/greet` allows the api to return a greeting message you, indicating the app works!
-- Run the `curl -X GET http://localhost:8000/files?path=<file path>` allows the api to return a list of files.
+- Run the `curl -X GET http://localhost:8000/files?path=<file/path>` allows the api to return a list of files.
