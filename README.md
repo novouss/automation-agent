@@ -25,8 +25,8 @@ Due to the unpredictable nature of incoming data (from logs, ticket systems, sou
 
 ## How to run
 
-1. Build the image by running `sudo docker build -t raymond-gorospe:latest .`
-2. Run the docker image `sudo docker run -p 8000:8000 -e AIPROXY_TOKEN=<openai_token> raymond-gorospe:latest`
+1. Build the image by running `sudo docker build -t automation-agent:latest .`
+2. Run the docker image `sudo docker run -p 8000:8000 -e AIPROXY_TOKEN=<openai_token> automation-agent:latest`
 
 ## How to POST/GET
 
