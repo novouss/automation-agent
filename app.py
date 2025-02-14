@@ -269,28 +269,28 @@ def task_runner(**kwargs):
     filepath = code_path + filename[0]
     # Python file creation
     make_directory(filepath)
-    print("2. File Writing")
+    # print("2. File Writing")
     with open(filepath, "w") as file:
         file.write(code_source)
-    print("Passed file writing")
+    # print("Passed file writing")
     command = ["uv", "add", "--frozen"]
-    print("3. Library Installation", libraries, bool(libraries))
+    # print("3. Library Installation", libraries, bool(libraries))
     for lib in libraries:
         run = command + list(lib)
         p = subprocess.run(run, check=True, capture_output=True)
-    print("Finished Library Installation")
+    # print("Finished Library Installation")
     try:
         # Running the file
         command = ["uv", "run", filepath]
-        print("4. Running uv files")
+        # print("4. Running uv files")
         if "input" in args.keys():
             command = command + [args["input"]]
-        print("Input passed", command)
+        # print("Input passed", command)
         if "output" in args.keys():
             command = command + [args["output"]]
-        print("Output passed", command)
+        # print("Output passed", command)
         p = subprocess.run(command, check=True, capture_output=True)
-        print("5. Passed Subprocess")
+        # print("5. Passed Subprocess")
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Something went wrong! {str(e.stderr.decode())}")
     except Exception as e:
@@ -348,9 +348,9 @@ def run_task(request: Request):
         if not function_call["name"].startswith("task_runner"):
             response_message = function_to_call(**function_call["args"])
         else:
-            print("1. Passed queries")
+            # print("1. Passed queries")
             response = query_gpt(task,f"Only write inside Python code blocks use comments to communicate.Keep comments simple and short.Include comments of name of file in line 1 and ONLY INCLUDE non-native libraries in line 2 separated only by a space.Write real and working Python code that can be ran using console use argparse THAT ONLY accepts {str(function_call["args"].keys())}.Always have a default and reliable input arguments don't submit without.Check again upon completion")
-            print(response)
+            # print(response)
             function_call["args"].update({ "task" : response })
             response_message = function_to_call(**function_call["args"])
     except KeyError as ke:
