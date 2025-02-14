@@ -1,0 +1,10 @@
+{
+    "proseWrap": "always",
+    "trailingComma": "es5",
+    "useTabs": false,
+    "tabWidth": 4,
+    "semi": false,
+    "singleQuote": true,
+    "bracketSpacing": false,
+    "parser": "markdown"
+}
