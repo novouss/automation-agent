@@ -15,7 +15,7 @@ retrieve_data = {
                 "type": "string",
                 "description": "An email is required to download the files e.g. example@email.com"
             }
-        },
+        }
     },
     "required": ["url", "email"]
 }
@@ -36,7 +36,7 @@ format_content = {
                 "type": "string",
                 "description": "Filepath and name that contains the contents to format e.g. /data/path/to/file.txt"
             }
-        },
+        }
     },
     "required": ["input"]
 }
@@ -61,7 +61,7 @@ count_days = {
                 "type": "string",
                 "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
             }
-        },
+        }
     },
     "required": ["days", "input", "output"]
 }
@@ -89,7 +89,7 @@ sort_contacts = {
                 "type": "string",
                 "description": "Filepath and name to save the output e.g. /data/path/to/output.json"
             }
-        },
+        }
     },
     "required": ["conditions", "input", "output"],
 }
@@ -114,7 +114,7 @@ recent_logs = {
                 "type": "string",
                 "description": "Filename and name to save the output e.g. /data/path/to/output.txt"
             }
-        },
+        }
     },
     "required": ["count", "input", "output"],
 }
@@ -139,7 +139,7 @@ file_contents = {
                 "type": "string",
                 "description": "Filepath and name to save the output e.g. /data/path/to/output.json"
             }
-        },
+        }
     },
     "required": ["filetype", "input", "output"],
 }
@@ -160,7 +160,7 @@ extract_email = {
                 "type": "string",
                 "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
             }
-        },
+        }
     },
     "required": ["input", "output"],
 }
@@ -181,7 +181,7 @@ extract_credit_card = {
                 "type": "string",
                 "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
             }
-        },
+        }
     },
     "required": ["input", "output"],
 }
@@ -202,7 +202,7 @@ extract_credit_card = {
                 "type": "string",
                 "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
             }
-        },
+        }
     },
     "required": ["input", "output"],
 }
@@ -223,7 +223,7 @@ extract_credit_card = {
                 "type": "string",
                 "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
             }
-        },
+        }
     },
     "required": ["input", "output"],
 }
@@ -244,7 +244,7 @@ embedding_comments = {
                 "type": "string",
                 "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
             }
-        },
+        }
     },
     "required": ["input", "output"],
 }
@@ -269,9 +269,59 @@ ticket_sales = {
                 "type": "string",
                 "description": "Filepath and name to save the output e.g. /data/path/to/output.txt"
             }
-        },
+        }
     },
     "required": ["type", "input", "output"],
+}
+
+task_runner_output = {
+    "name": "task_runner_output",
+    "description": "Any variation of requiring to create, execute, and run code that only has a desired output",
+    "parameters": {
+        "type": "object",
+        "properties" :{
+            "output": {
+                "type": "string",
+                "description": "Filepath and filename to save the output must start with /data/ e.g. /data/path/to/output"
+            }
+        }
+    },
+    "required": ["output"]
+}
+
+
+task_runner_all = {
+    "name": "task_runner_all",
+    "description": "Any variation of requiring to create, execute, and run code that has both a desired input and output",
+    "parameters": {
+        "type": "object",
+        "properties" :{
+            "input": {
+                "type": "string",
+                "description": "Filepath and filename that contains a information that will be used by the code must start with /data/ e.g. /data/path/to/input"
+            },
+            "output": {
+                "type": "string",
+                "description": "Filepath and filename to save the output must start with /data/ e.g. /data/path/to/output"
+            }
+        }
+    },
+    "required": ["input", "output"]
+}
+
+task_runner_input = {
+    "name": "task_runner_input",
+    "description": "Any variation of requiring to create, execute, and run code that only has a desired input",
+    "parameters": {
+        "type": "object",
+        "properties" :{
+            "input": {
+                "type": "string",
+                "description": "Filepath and filename that contains a information that will be used by the code must start with /data/ e.g. /data/path/to/input"
+            },
+        }
+    },
+    "required": ["input"]
 }
 
 function_calls = [
@@ -284,5 +334,8 @@ function_calls = [
     extract_email,
     extract_credit_card,
     embedding_comments,
-    ticket_sales
+    ticket_sales,
+    task_runner_output,
+    task_runner_all,
+    task_runner_input
 ]

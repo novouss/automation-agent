@@ -6,11 +6,13 @@ from openai import OpenAI
 
 from sentence_transformers import SentenceTransformer
 from function_calls import function_calls
-from keys import OPENAI_KEY
+# from keys import OPENAI_KEY
 
 import os
 import json
+import time
 import base64
+import string
 import sqlite3
 import subprocess
 import numpy as np
@@ -29,12 +31,12 @@ app.add_middleware(
 )
 
 client = OpenAI(
-    # api_key = os.environ["AIPROXY_TOKEN"],
-    api_key = OPENAI_KEY,
+    api_key = os.environ["AIPROXY_TOKEN"],
+    # api_key = OPENAI_KEY,
     base_url = "https://llmfoundry.straive.com/openai/v1"
 )
 
-def query_gpt(query: str, system: str = "Reply only with the answer the user is looking for, no added texts."):
+def query_gpt(query: str, system: str = "Reply only with the answer the user is looking for no added texts"):
     completions = client.chat.completions.create(
         model = "gpt-4o-mini",
         messages = [{
@@ -53,7 +55,7 @@ def query_gpt_with_image(query: str, image: str):
         model = "gpt-4o-mini",
         messages = [{
             "role": "system",
-            "content": "You are a helpful assistant. Reply only with the answer the user is looking for, no added texts"
+            "content": "You are a helpful assistant.Reply only with the answer the user is looking for no added texts"
         },          
         {
         	"role": "user",
@@ -75,14 +77,13 @@ def query_gpt_with_image(query: str, image: str):
 def function_gpt(prompt: str, tools: List[Dict[str, Any]]):
     completions = client.chat.completions.create(
         model = "gpt-4o-mini",
-        messages = [{
-            "role": "user", "content": prompt
-        }],
+        messages = [
+            { "role": "user", "content": prompt }
+        ],
         functions = tools,
         function_call = "auto"
     )
-    output = completions.choices[0].message
-    return output
+    return completions.choices[0].message
 
 def make_directory(path: str):
     dir = os.path.dirname(path)
@@ -101,7 +102,7 @@ def retrieve_data(url: str, email: str):
 
 def format_content(prettier: str, input: str):
     try:
-        subprocess.run(["npx", "-y", prettier, "--write", input], check=True, capture_output=True)
+        subprocess.run(["npx", "-y", prettier, "--config", "./.prettierrc", "--write", input], check=True, capture_output=True)
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Content Formatting failed with error: {str(e.stderr.decode())}")
     return input + " has been formatted"
@@ -125,6 +126,10 @@ def count_days(days: str, input: str, output: str):
         "sun": 6
     }
     days = days.lower()
+    if days.endswith("days"):
+        days = days[:len("days")]
+    elif days.endswith("day"):
+        days = days[:len("day")]
     count_days = 0
     for date_str in dates:
         date_str = date_str.strip()
@@ -182,7 +187,6 @@ def file_contents(filetype: str, input: str, output: str):
                             relative_path = os.path.relpath(file_path, input)
                             index[relative_path] = title
                             break
-
     # Write the file index and contents to output file
     make_directory(output)
     with open(output, "w") as file:
@@ -243,6 +247,56 @@ def ticket_sales(type: str, input: str, output: str):
         file.write(str(sales[0][0]))
     return "Result of total ticket sales has been saved at: " + output
 
+def task_runner(**kwargs):
+    args = kwargs
+    filename = []
+    libraries = []
+    code_source = ""
+    code_path = "/data/"
+    for index, line in enumerate(args["task"].split("\n")):
+        if line.startswith("```"):
+            continue
+        if line.startswith("# "):
+            line_split = line.split()
+            if index == 1: # Filename index
+                filename = [text for text in line_split if text.endswith(".py")]
+            elif index == 2 and not line.endswith("None"): # Libraries index
+                libraries = [text.strip(string.punctuation) for text in line_split[3:] if text.strip(string.punctuation).isalnum()] 
+            continue
+        code_source += line + "\n"
+    if not filename: # Filename failsafe, if filename wasn't generated
+        filename = "python-code.py"
+    filepath = code_path + filename[0]
+    # Python file creation
+    make_directory(filepath)
+    print("2. File Writing")
+    with open(filepath, "w") as file:
+        file.write(code_source)
+    print("Passed file writing")
+    command = ["uv", "add", "--frozen"]
+    print("3. Library Installation", libraries, bool(libraries))
+    for lib in libraries:
+        run = command + list(lib)
+        p = subprocess.run(run, check=True, capture_output=True)
+    print("Finished Library Installation")
+    try:
+        # Running the file
+        command = ["uv", "run", filepath]
+        print("4. Running uv files")
+        if "input" in args.keys():
+            command = command + [args["input"]]
+        print("Input passed", command)
+        if "output" in args.keys():
+            command = command + [args["output"]]
+        print("Output passed", command)
+        p = subprocess.run(command, check=True, capture_output=True)
+        print("5. Passed Subprocess")
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Something went wrong! {str(e.stderr.decode())}")
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"{command} failed to run due to: {str(e)}")
+    return str(command) + " has ran successfully!"
+
 functions = {
     "retrieve_data": retrieve_data,
     "format_content": format_content,
@@ -253,8 +307,27 @@ functions = {
     "extract_email": extract_email,
     "extract_credit_card": extract_credit_card,
     "embedding_comments": embedding_comments,
-    "ticket_sales": ticket_sales
+    "ticket_sales": ticket_sales,
+    "task_runner_output": task_runner,
+    "task_runner_all": task_runner,
+    "task_runner_input": task_runner
 }
+
+def handle_function_call(response):
+    if not response.function_call:
+        return None
+    function_called = response.function_call.name
+    function_args = json.loads(response.function_call.arguments)
+    required_params = next((f["required"] for f in function_calls if f["name"] == function_called), [])
+    for param in required_params:
+        # Checking for required parameters
+        if param not in function_args:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing required parameter: {param}")
+        # Checking for asking data outside of /data/
+        if param in ["input", "output"] and not function_args[param].startswith("/data/"):
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Sorry, you don't have permission to access {function_args[param]}")
+    # Continue to run if required parameters are met
+    return { "name": function_called, "args": function_args }
 
 @app.post("/run", status_code=status.HTTP_200_OK)
 def run_task(request: Request):
@@ -266,30 +339,26 @@ def run_task(request: Request):
             task = query_gpt("Translate this text in English: " + task)
         # Run task to function calls
         response = function_gpt(task, function_calls)
-        # print(task, response, sep="\n")
         # Tasks under function call responses
-        if response.function_call:
-            function_called = response.function_call.name
-            function_args = json.loads(response.function_call.arguments)
-            function_to_call = functions[function_called]
-            required_params = next((f["required"] for f in function_calls if f["name"] == function_called), [])
-            for param in required_params:
-                # Checking for required parameters
-                if param not in function_args:
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing required parameter: {param}")
-                # Checking for asking data outside of /data/
-                if param in ["input", "output"] and not function_args[param].startswith("/data/"):
-                    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Sorry, you don't have permission to access {function_args[param]}")
-            # Continue to run if required parameters are met
-            response_message = function_to_call(*list(function_args.values()))
+        function_call = handle_function_call(response)
+        if not function_call:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please provide an input and output as to where you want to read the data from and where you want to save its results")
+        function_to_call = functions[function_call["name"]]
+        response_message = ""
+        if not function_call["name"].startswith("task_runner"):
+            response_message = function_to_call(**function_call["args"])
         else:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No function call found in the response.")
+            print("1. Passed queries")
+            response = query_gpt(task,f"Only write inside Python code blocks use comments to communicate.Keep comments simple and short.Include comments of name of file in line 1 and ONLY INCLUDE non-native libraries in line 2 separated only by a space.Write real and working Python code that can be ran using console use argparse THAT ONLY accepts {str(function_call["args"].keys())}.Always have a default and reliable input arguments don't submit without.Check again upon completion")
+            print(response)
+            function_call["args"].update({ "task" : response })
+            response_message = function_to_call(**function_call["args"])
     except KeyError as ke:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing {ke} parameter")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing required parameter: {ke}")
     except FileNotFoundError as fnfe:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The file or directory {fnfe} does not exist or cannot be found!")
     except Exception as e:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"{str(e)}")
     return JSONResponse(content={"message": "Task completed successfully", "response": response_message}, status_code=status.HTTP_200_OK)
 
 @app.get("/read", status_code=status.HTTP_200_OK)
@@ -301,9 +370,11 @@ def read_path(request: Request):
             output = file.read()
     except KeyError as ke:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing {ke} parameter")
+    except IsADirectoryError as de:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"You seem to be trying to read a directory {de}")
     except FileNotFoundError as fnfe: 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The file or directory {fnfe} does not exist or cannot be found!")
-    return output
+    return str(output)
 
 @app.get("/greet", status_code=status.HTTP_200_OK)
 def debug_tool(request: Request):
