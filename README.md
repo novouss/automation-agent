@@ -22,11 +22,12 @@ Your assignment is to build an automation agent that accepts plain‑English tas
     - Extract ~~credit card~~ numbers from an image
     - Pair most similar comments using embeddings and cosine similarity
     - Write the total sales of all items in a particular ticket type
+    - Locks users out of appropriate file structure
 
 ## How to run
 
 1. Build the image by running `sudo docker build -t raymond-gorospe:v1 .`
-2. Run the docker image `sudo docker run raymond-gorospe:v1 -p 8000:8000 -e AIPROXY_TOKEN=<openai_token>`
+2. Run the docker image `sudo docker run -p 8000:8000 -e AIPROXY_TOKEN=<openai_token> raymond-gorospe:v1`
 
 ## How to POST/GET
 
