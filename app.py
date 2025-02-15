@@ -2,7 +2,6 @@ from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from typing import List, Dict, Any
-from openai import OpenAI
 
 from sentence_transformers import SentenceTransformer
 from function_calls import function_calls
@@ -10,17 +9,24 @@ from function_calls import function_calls
 
 import os
 import json
-import time
+import httpx
 import base64
 import string
 import sqlite3
 import subprocess
-import numpy as np
 from langdetect import detect
 from scipy.spatial import distance
 from dateutil.parser import parse
 
 app = FastAPI()
+
+url = "https://llmfoundry.straive.com/openai/v1/chat/completions"
+api_key = os.environ["AIPROXY_TOKEN"]
+# api_key = OPENAI_KEY
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {api_key}"
+}
 
 app.add_middleware(
     CORSMiddleware,
@@ -30,60 +36,46 @@ app.add_middleware(
     allow_headers = ["*"]
 )
 
-client = OpenAI(
-    api_key = os.environ["AIPROXY_TOKEN"],
-    # api_key = OPENAI_KEY,
-    base_url = "https://llmfoundry.straive.com/openai/v1"
-)
-
 def query_gpt(query: str, system: str = "Reply only with the answer the user is looking for no added texts"):
-    completions = client.chat.completions.create(
-        model = "gpt-4o-mini",
-        messages = [{
-            "role": "system",
-            "content": system
-        },
-        {
-            "role": "user",
-            "content": query
-        }]
-    )
-    return completions.choices[0].message.content
+    data = {
+        "model": "gpt-4o-mini",
+        "messages": [
+            { "role": "system", "content": system },
+            { "role": "user", "content": query }
+        ]
+    }
+    response = httpx.post(url, headers=headers, json=data)
+    response.raise_for_status()
+    response_message = response.json()
+    return response_message["choices"][0]["message"]["content"]
 
 def query_gpt_with_image(query: str, image: str):
-    completions = client.chat.completions.create(
-        model = "gpt-4o-mini",
-        messages = [{
-            "role": "system",
-            "content": "You are a helpful assistant.Reply only with the answer the user is looking for no added texts"
-        },          
-        {
-        	"role": "user",
-        	"content": [
-                {
-                    "type": "text",
-                    "text": query
-                },
-                {
-                    "type": "image_url",
-                    "image_url": {
-                        "url": image
-                    }
-                }]
-    	}]
-    )
-    return completions.choices[0].message.content
+    data = {
+        "model": "gpt-4o-mini",
+        "messages": [
+            { "role": "system", "content": "You are a helpful assistant.Reply only with the answer the user is looking for no added texts" },
+            { "role": "user", "content": [
+                { "type": "text", "text": query },
+                { "type": "image_url",  "image_url": { "url": image } }
+            ]}
+        ],
+    }
+    response = httpx.post(url, headers=headers, json=data)
+    response_message = response.json()
+    return response_message["choices"][0]["message"]["content"]
 
 def function_gpt(prompt: str, tools: List[Dict[str, Any]]):
-    completions = client.chat.completions.create(
-        model = "gpt-4o-mini",
-        messages = [
+    data = {
+        "model": "gpt-4o-mini",
+        "messages": [
             { "role": "user", "content": prompt }
         ],
-        functions = tools,
-        function_call = "auto"
-    )
-    return completions.choices[0].message
+        "functions": tools,
+        "function_call": "auto"
+    }
+    response = httpx.post(url, headers=headers, json=data)
+    response_message = response.json()
+    return response_message["choices"][0]["message"]
 
 def make_directory(path: str):
     dir = os.path.dirname(path)
@@ -221,7 +213,7 @@ def embedding_comments(input: str, output: str):
     embeddings = model.encode(comments)
     # Much more efficient approach https://stackoverflow.com/questions/53455909/python-optimized-most-cosine-similar-vector
     cosine_distances = distance.cdist(embeddings, embeddings, "cosine")
-    min_distance = np.inf
+    min_distance = float("inf")
     most_similar_pair = (None, None)
     for i in range(len(embeddings)):
         for j in range(i + 1, len(embeddings)):
@@ -274,25 +266,30 @@ def task_runner(**kwargs):
         file.write(code_source)
     # print("Passed file writing")
     command = ["uv", "add", "--frozen"]
-    # print("3. Library Installation", libraries, bool(libraries))
+    print("3. Library Installation", libraries, bool(libraries))
     for lib in libraries:
-        run = command + list(lib)
+        run = command + [lib]
+        print(run)
         p = subprocess.run(run, check=True, capture_output=True)
-    # print("Finished Library Installation")
+    print("Finished Library Installation")
     try:
         # Running the file
         command = ["uv", "run", filepath]
-        # print("4. Running uv files")
+        print("4. Running uv files")
         if "input" in args.keys():
+            if "--input" in code_source:
+                command = command + ["--input"]
             command = command + [args["input"]]
-        # print("Input passed", command)
+        print("Input passed", command)
         if "output" in args.keys():
+            if "--output" in code_source:
+                command = command + ["--output"]
             command = command + [args["output"]]
-        # print("Output passed", command)
+        print("Output passed", command)
         p = subprocess.run(command, check=True, capture_output=True)
-        # print("5. Passed Subprocess")
+        print("5. Passed Subprocess")
     except subprocess.CalledProcessError as e:
-        raise RuntimeError(f"Something went wrong! {str(e.stderr.decode())}")
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"The generated code failed to run {str(e.stderr.decode())}")
     except Exception as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"{command} failed to run due to: {str(e)}")
     return str(command) + " has ran successfully!"
@@ -314,15 +311,15 @@ functions = {
 }
 
 def handle_function_call(response):
-    if not response.function_call:
+    if not response["function_call"]:
         return None
-    function_called = response.function_call.name
-    function_args = json.loads(response.function_call.arguments)
+    function_called = response["function_call"]["name"]
+    function_args = json.loads(response["function_call"]["arguments"])
     required_params = next((f["required"] for f in function_calls if f["name"] == function_called), [])
     for param in required_params:
         # Checking for required parameters
         if param not in function_args:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing required parameter: {param}")
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Handler missing required parameter: {param}")
         # Checking for asking data outside of /data/
         if param in ["input", "output"] and not function_args[param].startswith("/data/"):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Sorry, you don't have permission to access {function_args[param]}")
@@ -349,12 +346,13 @@ def run_task(request: Request):
             response_message = function_to_call(**function_call["args"])
         else:
             # print("1. Passed queries")
-            response = query_gpt(task,f"Only write inside Python code blocks use comments to communicate.Keep comments simple and short.Include comments of name of file in line 1 and ONLY INCLUDE non-native libraries in line 2 separated only by a space.Write real and working Python code that can be ran using console use argparse THAT ONLY accepts {str(function_call["args"].keys())}.Always have a default and reliable input arguments don't submit without.Check again upon completion")
+            response = query_gpt(task, f"You are an AI who keep comments short simple and inside Python code blocks tasked with generating a Python script that fulfills specific user requirements.The script should be functional efficient well-structured adhering that includes comments of 'name' of file in line 1 and only include 'non-native libraries' in line 2 separated only by a space.The output should be a complete Python file that can be run directly without modification.It needs to use argparse to parse {str(function_call["args"].keys())} upon running on the terminal.The final output should be a complete and valid Python script without errors when executed in a standard Python environment.")
+            #  response = query_gpt(task,f"Write in Python code blocks use comments to communicate.Keep comments simple and short.Include comments of name of file in line 1 and only incllude non-native libraries in line 2 separated only by a space.Use real and working Python code that can be ran using console use argparse that accepts {str(function_call["args"].keys())}.Have a default and reliable input arguments don't submit without. Do double checks before answering make sure answer fits the users request.")
             # print(response)
             function_call["args"].update({ "task" : response })
             response_message = function_to_call(**function_call["args"])
     except KeyError as ke:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Missing required parameter: {ke}")
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Entry missing required parameter: {ke}")
     except FileNotFoundError as fnfe:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The file or directory {fnfe} does not exist or cannot be found!")
     except Exception as e:
