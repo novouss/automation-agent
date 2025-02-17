@@ -1,6 +1,6 @@
 from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from typing import List, Dict, Any
 
 from sentence_transformers import SentenceTransformer
@@ -372,7 +372,7 @@ def read_path(request: Request):
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"You seem to be trying to read a directory {de}")
     except FileNotFoundError as fnfe: 
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"The file or directory {fnfe} does not exist or cannot be found!")
-    return str(output)
+    return PlainTextResponse(output)
 
 @app.get("/greet", status_code=status.HTTP_200_OK)
 def debug_tool(request: Request):
