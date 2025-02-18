@@ -13,19 +13,21 @@ import base64
 import string
 import sqlite3
 import subprocess
+import numpy as np
 from langdetect import detect
 from scipy.spatial import distance
 from dateutil.parser import parse
 
 app = FastAPI()
 
-url = "https://llmfoundry.straive.com/openai/v1/chat/completions"
-api_key = os.environ["AIPROXY_TOKEN"]
-# api_key = OPENAI_KEY
-headers = {
-    "Content-Type": "application/json",
-    "Authorization": f"Bearer {api_key}"
-}
+URL = "https://llmfoundry.straive.com/openai/v1/"
+API_KEY = os.environ["AIPROXY_TOKEN"]
+# API_KEY = OPENAI_KEY
+
+client = OpenAI(
+    base_url = URL,
+    api_key = API_KEY
+)
 
 app.add_middleware(
     CORSMiddleware,
@@ -35,46 +37,61 @@ app.add_middleware(
     allow_headers = ["*"]
 )
 
-def query_gpt(query: str, system: str = "Reply only with the answer the user is looking for no added texts"):
-    data = {
-        "model": "gpt-4o-mini",
-        "messages": [
-            { "role": "system", "content": system },
-            { "role": "user", "content": query }
-        ]
-    }
-    response = httpx.post(url, headers=headers, json=data)
-    response.raise_for_status()
-    response_message = response.json()
-    return response_message["choices"][0]["message"]["content"]
+def query_text(query: str, system: str = "Reply only with the answer the user is looking for no added texts"):
+    completions = client.chat.completions.create(
+        model = "gpt-4o-mini",
+        messages = [{
+            "role": "system",
+            "content": system
+        },
+        {
+            "role": "user",
+            "content": query
+        }]
+    )
+    return completions.choices[0].message.content
 
-def query_gpt_with_image(query: str, image: str):
-    data = {
-        "model": "gpt-4o-mini",
-        "messages": [
-            { "role": "system", "content": "You are a helpful assistant.Reply only with the answer the user is looking for no added texts" },
-            { "role": "user", "content": [
-                { "type": "text", "text": query },
-                { "type": "image_url",  "image_url": { "url": image } }
-            ]}
-        ],
-    }
-    response = httpx.post(url, headers=headers, json=data)
-    response_message = response.json()
-    return response_message["choices"][0]["message"]["content"]
+def query_image(query: str, image: str):
+    completions = client.chat.completions.create(
+        model = "gpt-4o-mini",
+        messages = [{
+            "role": "system",
+            "content": "You are a helpful assistant. Reply only with the answer the user is looking for, no added texts"
+        },          
+        {
+        	"role": "user",
+        	"content": [
+                {
+                    "type": "text",
+                    "text": query
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": image
+                    }
+                }]
+    	}]
+    )
+    return completions.choices[0].message.content
+
+def query_embeddings(text: str):
+    response = client.embeddings.create(
+        model="text-embedding-ada-002",
+        input=text
+    )
+    return response.data[0].embedding
 
 def function_gpt(prompt: str, tools: List[Dict[str, Any]]):
-    data = {
-        "model": "gpt-4o-mini",
-        "messages": [
-            { "role": "user", "content": prompt }
-        ],
-        "functions": tools,
-        "function_call": "auto"
-    }
-    response = httpx.post(url, headers=headers, json=data)
-    response_message = response.json()
-    return response_message["choices"][0]["message"]
+    completions = client.chat.completions.create(
+        model = "gpt-4o-mini",
+        messages = [{
+            "role": "user", "content": prompt
+        }],
+        functions = tools,
+        function_call = "auto"
+    )
+    return completions.choices[0].message
 
 def make_directory(path: str):
     dir = os.path.dirname(path)
@@ -163,7 +180,6 @@ def recent_logs(count: int, input: str, output: str):
     
 def file_contents(filetype: str, input: str, output: str):
     index = {}
-
     if filetype == "":
         filetype = ".md"
     # This is hell
@@ -187,7 +203,7 @@ def file_contents(filetype: str, input: str, output: str):
 def extract_email(input: str, output: str):
     with open(input, "r") as file:
         email = file.read()
-    response = query_gpt(f"Extract the sender's email address from this email. {email}")
+    response = query_text(f"Extract the sender's email address from this email. {email}")
     # Write the sender's email address to the output file
     make_directory(output)
     with open(output, "w") as file:
@@ -198,7 +214,7 @@ def extract_credit_card(input: str, output: str):
     with open(input, "rb") as file:
         image = base64.b64encode(file.read()).decode("utf-8")
     image_base64 = f"data:image/png;base64,{image}"
-    response = query_gpt_with_image("Extract the long Product Cover ID numbers (often a variation of XXXX XXXX XXXX XXXX) from this image ", image_base64)
+    response = query_image("Extract the long Product Cover ID numbers (often a variation of XXXX XXXX XXXX XXXX) from this image ", image_base64)
     # Write the credit card number to the output file
     make_directory(output)
     with open(output, "w") as file:
@@ -208,18 +224,21 @@ def extract_credit_card(input: str, output: str):
 def embedding_comments(input: str, output: str):
     with open(input, "r") as file:
         comments = [line.strip() for line in file.readlines()]
-    model = SentenceTransformer("all-distilroberta-v1")
-    embeddings = model.encode(comments)
+    # Compute embeddings for each comment
+    embeddings = []
+    for comment in comments:
+        embedding = query_embeddings(comment)
+        embeddings.append(embedding)
+    embeddings_array = np.array(embeddings)
     # Much more efficient approach https://stackoverflow.com/questions/53455909/python-optimized-most-cosine-similar-vector
-    cosine_distances = distance.cdist(embeddings, embeddings, "cosine")
+    cosine_distances = distance.cdist(embeddings_array, embeddings_array, "cosine")
     min_distance = float("inf")
     most_similar_pair = (None, None)
-    for i in range(len(embeddings)):
-        for j in range(i + 1, len(embeddings)):
+    for i in range(len(comments)):
+        for j in range(i + 1, len(comments)):
             if cosine_distances[i, j] < min_distance:
                 min_distance = cosine_distances[i, j]
                 most_similar_pair = (comments[i], comments[j])
-    # Write the most similar embeddings to output file
     make_directory(output)
     with open(output, "w") as file:
         file.write(most_similar_pair[0] + "\n")
@@ -310,10 +329,10 @@ functions = {
 }
 
 def handle_function_call(response):
-    if not response["function_call"]:
+    if not response.function_call:
         return None
-    function_called = response["function_call"]["name"]
-    function_args = json.loads(response["function_call"]["arguments"])
+    function_called = response.function_call.name
+    function_args = json.loads(response.function_call.arguments)
     required_params = next((f["required"] for f in function_calls if f["name"] == function_called), [])
     for param in required_params:
         # Checking for required parameters
@@ -332,7 +351,7 @@ def run_task(request: Request):
         task = request.query_params["task"]
         if not is_english(task):
             # If task wasn't written in English, translate it
-            task = query_gpt("Translate this text in English: " + task)
+            task = query_text("Translate this text in English: " + task)
         # Run task to function calls
         response = function_gpt(task, function_calls)
         # Tasks under function call responses
@@ -345,8 +364,7 @@ def run_task(request: Request):
             response_message = function_to_call(**function_call["args"])
         else:
             # print("1. Passed queries")
-            response = query_gpt(task, f"You are an AI who keep comments short simple and inside Python code blocks tasked with generating a Python script that fulfills specific user requirements.The script should be functional efficient well-structured adhering that includes comments of 'name' of file in line 1 and only include 'non-native libraries' in line 2 separated only by a space.The output should be a complete Python file that can be run directly without modification.It needs to use argparse to parse {str(function_call["args"].keys())} upon running on the terminal.The final output should be a complete and valid Python script without errors when executed in a standard Python environment.")
-            #  response = query_gpt(task,f"Write in Python code blocks use comments to communicate.Keep comments simple and short.Include comments of name of file in line 1 and only incllude non-native libraries in line 2 separated only by a space.Use real and working Python code that can be ran using console use argparse that accepts {str(function_call["args"].keys())}.Have a default and reliable input arguments don't submit without. Do double checks before answering make sure answer fits the users request.")
+            response = query_text(task, f"You are an AI who keep comments short simple and inside Python code blocks tasked with generating a Python script that fulfills specific user requirements.The script should be functional efficient well-structured adhering that includes comments of 'name' of file in line 1 and only include 'non-native libraries' in line 2 separated only by a space.The output should be a complete Python file that can be run directly without modification.It needs to use argparse to parse {str(function_call["args"].keys())} upon running on the terminal.The final output should be a complete and valid Python script without errors when executed in a standard Python environment.")
             # print(response)
             function_call["args"].update({ "task" : response })
             response_message = function_to_call(**function_call["args"])
