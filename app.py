@@ -2,14 +2,13 @@ from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from typing import List, Dict, Any
+from openai import OpenAI
 
-from sentence_transformers import SentenceTransformer
 from function_calls import function_calls
 # from keys import OPENAI_KEY
 
 import os
 import json
-import httpx
 import base64
 import string
 import sqlite3

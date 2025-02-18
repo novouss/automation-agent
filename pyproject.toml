@@ -6,9 +6,9 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "fastapi>=0.115.8",
-    "httpx>=0.28.1",
     "langdetect>=1.0.9",
+    "openai>=1.63.2",
     "python-dateutil>=2.9.0.post0",
-    "sentence-transformers>=3.4.1",
+    "scipy>=1.15.2",
     "uvicorn>=0.34.0",
 ]
