@@ -364,7 +364,7 @@ def run_task(request: Request):
             response_message = function_to_call(**function_call["args"])
         else:
             # print("1. Passed queries")
-            response = query_text(task, f"You are an AI who keep comments short simple and inside Python code blocks tasked with generating a Python script that fulfills specific user requirements.The script should be functional efficient well-structured adhering that includes comments of 'name' of file in line 1 and only include 'non-native libraries' in line 2 separated only by a space.The output should be a complete Python file that can be run directly without modification.It needs to use argparse to parse {str(function_call["args"].keys())} upon running on the terminal.The final output should be a complete and valid Python script without errors when executed in a standard Python environment.")
+            response = query_text(task, f"Reply only with Python answers.Comment 'filename:' to line 1 and add the name of the file.Comment 'non-native libraries' to line 2 and add non-native python libraries used in the project,if none say None.Use argparse to parse {str(function_call["args"].keys())} upon running the script in the terminal.Double check to ensure there is no errors running the script")
             # print(response)
             function_call["args"].update({ "task" : response })
             response_message = function_to_call(**function_call["args"])
