@@ -274,25 +274,9 @@ ticket_sales = {
     "required": ["type", "input", "output"],
 }
 
-task_runner_output = {
-    "name": "task_runner_output",
-    "description": "Any variation of requiring to create, execute, and run code that only has a desired output",
-    "parameters": {
-        "type": "object",
-        "properties" :{
-            "output": {
-                "type": "string",
-                "description": "Filepath and filename to save the output must start with /data/ e.g. /data/path/to/output"
-            }
-        }
-    },
-    "required": ["output"]
-}
-
-
-task_runner_all = {
-    "name": "task_runner_all",
-    "description": "Any variation of requiring to create, execute, and run code that has both a desired input and output",
+task_runner = {
+    "name": "task_runner",
+    "description": "Any variation of user requesting to create code, execute code, and run code",
     "parameters": {
         "type": "object",
         "properties" :{
@@ -305,23 +289,7 @@ task_runner_all = {
                 "description": "Filepath and filename to save the output must start with /data/ e.g. /data/path/to/output"
             }
         }
-    },
-    "required": ["input", "output"]
-}
-
-task_runner_input = {
-    "name": "task_runner_input",
-    "description": "Any variation of requiring to create, execute, and run code that only has a desired input",
-    "parameters": {
-        "type": "object",
-        "properties" :{
-            "input": {
-                "type": "string",
-                "description": "Filepath and filename that contains a information that will be used by the code must start with /data/ e.g. /data/path/to/input"
-            },
-        }
-    },
-    "required": ["input"]
+    }
 }
 
 function_calls = [
@@ -335,7 +303,5 @@ function_calls = [
     extract_credit_card,
     embedding_comments,
     ticket_sales,
-    task_runner_output,
-    task_runner_all,
-    task_runner_input
+    task_runner,
 ]

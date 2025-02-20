@@ -258,11 +258,13 @@ def ticket_sales(type: str, input: str, output: str):
     return "Result of total ticket sales has been saved at: " + output
 
 def task_runner(**kwargs):
+    # start_time = time.time()
     args = kwargs
     filename = []
     libraries = []
     code_source = ""
     code_path = "/data/"
+    
     for index, line in enumerate(args["task"].split("\n")):
         if line.startswith("```"):
             continue
@@ -274,38 +276,31 @@ def task_runner(**kwargs):
                 libraries = [text.strip(string.punctuation) for text in line_split[3:] if text.strip(string.punctuation).isalnum()] 
             continue
         code_source += line + "\n"
+        
+    # print(f"Time taken for parsing: {time.time() - start_time} seconds")
     if not filename: # Filename failsafe, if filename wasn't generated
         filename = "python-code.py"
     filepath = code_path + filename[0]
+    
     # Python file creation
     make_directory(filepath)
-    # print("2. File Writing")
     with open(filepath, "w") as file:
         file.write(code_source)
-    # print("Passed file writing")
+    # print(f"Time taken for file creation: {time.time() - start_time} seconds")
+    
     command = ["uv", "add", "--frozen"]
-    print("3. Library Installation", libraries, bool(libraries))
     for lib in libraries:
         run = command + [lib]
-        print(run)
-        p = subprocess.run(run, check=True, capture_output=True)
-    print("Finished Library Installation")
+        subprocess.run(run, check=True, capture_output=True)
+    # print(f"Time taken for library installation: {time.time() - start_time} seconds")
+    
     try:
         # Running the file
         command = ["uv", "run", filepath]
-        print("4. Running uv files")
-        if "input" in args.keys():
-            if "--input" in code_source:
-                command = command + ["--input"]
-            command = command + [args["input"]]
-        print("Input passed", command)
-        if "output" in args.keys():
-            if "--output" in code_source:
-                command = command + ["--output"]
-            command = command + [args["output"]]
-        print("Output passed", command)
-        p = subprocess.run(command, check=True, capture_output=True)
-        print("5. Passed Subprocess")
+        # print("3.5 Running uv files")
+        subprocess.run(command, check=True, capture_output=True)
+        # print("3.6 Passed Subprocess")
+        # print(f"Time taken for script execution: {time.time() - start_time} seconds")
     except subprocess.CalledProcessError as e:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"The generated code failed to run {str(e.stderr.decode())}")
     except Exception as e:
@@ -323,18 +318,28 @@ functions = {
     "extract_credit_card": extract_credit_card,
     "embedding_comments": embedding_comments,
     "ticket_sales": ticket_sales,
-    "task_runner_output": task_runner,
-    "task_runner_all": task_runner,
-    "task_runner_input": task_runner
+    "task_runner": task_runner,
 }
 
 def handle_function_call(response):
+    # print("1.1 Response", response)
     if not response.function_call:
-        return None
+        # print("1.1.1 No function_call")
+        return { "name": "task_runner", "args": {} }
+    
     function_called = response.function_call.name
+    # print("1.2 Function called", function_called)
+    
     function_args = json.loads(response.function_call.arguments)
+    # print("Args", function_args)
+    
     required_params = next((f["required"] for f in function_calls if f["name"] == function_called), [])
+    # print("1.3 Required", required_params)
+    
     for param in required_params:
+        # Break if no required params were needed
+        if not required_params:
+            break
         # Checking for required parameters
         if param not in function_args:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Handler missing required parameter: {param}")
@@ -342,6 +347,7 @@ def handle_function_call(response):
         if param in ["input", "output"] and not function_args[param].startswith("/data/"):
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Sorry, you don't have permission to access {function_args[param]}")
     # Continue to run if required parameters are met
+    # print("1.4 Passed paramters")
     return { "name": function_called, "args": function_args }
 
 @app.post("/run", status_code=status.HTTP_200_OK)
@@ -352,21 +358,24 @@ def run_task(request: Request):
         if not is_english(task):
             # If task wasn't written in English, translate it
             task = query_text("Translate this text in English: " + task)
+        
         # Run task to function calls
         response = function_gpt(task, function_calls)
         # Tasks under function call responses
         function_call = handle_function_call(response)
-        if not function_call:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Please provide an input and output as to where you want to read the data from and where you want to save its results")
         function_to_call = functions[function_call["name"]]
         response_message = ""
-        if not function_call["name"].startswith("task_runner"):
+        if function_call["name"].startswith("task_runner"):
+            # print("3.1 Passed queries")
+            args = ""
+            if function_call["args"].get("input"):
+                args += f"Use {function_call["args"].get("input")} as input."
+            if function_call["args"].get("output"):
+                args += f"Use {function_call["args"].get("output")} as output."
+            response = query_text(task, f"Reply only with Python answers.Comment 'filename:' to line 1 and add the name of the file.Comment 'non-native libraries' to line 2 and add non-native python libraries used in the project,if none say None.Double check to ensure there is no errors running the script.Use native Python Libraries as much as possible.{args}")
+            function_call["args"].update({ "task" : response })
             response_message = function_to_call(**function_call["args"])
         else:
-            # print("1. Passed queries")
-            response = query_text(task, f"Reply only with Python answers.Comment 'filename:' to line 1 and add the name of the file.Comment 'non-native libraries' to line 2 and add non-native python libraries used in the project,if none say None.Use argparse to parse {str(function_call["args"].keys())} upon running the script in the terminal.Double check to ensure there is no errors running the script")
-            # print(response)
-            function_call["args"].update({ "task" : response })
             response_message = function_to_call(**function_call["args"])
     except KeyError as ke:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Entry missing required parameter: {ke}")
